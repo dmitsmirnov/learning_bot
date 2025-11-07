@@ -1,5 +1,5 @@
-from telegram.ext import Application, CommandHandler
 
+from telegram.ext import Application, CommandHandler
 
 # Функция, которая отвечает на команду /start
 async def start(update, context):

@@ -1,3 +1,4 @@
+
 # Virtual environment
 env_learning_bot/
 venv/
@@ -28,4 +29,36 @@ Thumbs.db
 .ipynb_checkpoints
 
 # Conda
+
+# Virtual environment
+env_learning_bot/
+venv/
+.env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints
+
+# Conda
+
 .conda/
