@@ -4,7 +4,7 @@ from telegram.ext import Application, CommandHandler
 # Функция, которая отвечает на команду /start
 async def start(update, context):
     # Отправляем сообщение пользователю
-    await update.message.reply_text("Hello, World!")
+    await update.message.reply_text("Hello, World from pyCharm")
 
 
 # Главная функция для запуска бота
