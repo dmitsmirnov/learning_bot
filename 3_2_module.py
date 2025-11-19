@@ -3,6 +3,7 @@ import json
 import datetime
 from telegram.ext import Updater, CommandHandler, MessageHandler, filters, Application, CallbackQueryHandler  
 from telegram import ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+import requests
 
 def load_history():  
     try:  
@@ -41,10 +42,11 @@ async def calc(update, context):
 # Функция, которая отвечает на команду /start
 async def start(update, context):
     # Отправляем сообщение пользователю
-    await update.message.reply_text("Hello, World from pyCharm")
+    response = requests.get("https://api.exchangerate-api.com/v4/latest/USD")
+    #print(response.json())
+    await update.message.reply_text("Hello")
 
 async def handle_message(update, context):
-    # Здесь нужно добавить логику обработки сообщений для калькулятора
     user_input = update.message.text
     user_data = context.user_data
     
@@ -68,24 +70,21 @@ async def handle_message(update, context):
                     [InlineKeyboardButton("+", callback_data="+"), InlineKeyboardButton("-", callback_data="-")],
                     [InlineKeyboardButton("/", callback_data="/"), InlineKeyboardButton("*", callback_data="*")]
                 ]
-                inline_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+                reply_markup = InlineKeyboardMarkup(inline_keyboard)
                 
-                keyboard = [["+", "-"], ["/", "*"]]
-                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
-                
-                #await update.message.reply_text("Выбери операцию", reply_markup=reply_markup)
-                await update.message.reply_text("Выбери операцию", reply_markup=inline_markup)
+                await update.message.reply_text("Выбери операцию", reply_markup=reply_markup)
             except ValueError:
                 await update.message.reply_text("Пожалуйста, введи корректное число.")
         
         elif step == "operation":
+            # Этот блок не должен выполняться при inline кнопках!
+            # Он выполняется только если пользователь вводит операцию текстом
             num1 = user_data["num1"]
             num2 = user_data["num2"]
             operation = user_input
             
             result = calculate(num1, num2, operation)
             
-            # Сохраняем в историю
             history = load_history()
             user_id = str(update.effective_user.id)
             if user_id not in history:
@@ -94,44 +93,67 @@ async def handle_message(update, context):
             history[user_id].append(f"{num1} {operation} {num2} = {result}")
             save_history(history)
             
-            await update.message.reply_text(f"Результат: {result}")
             
-            # Очищаем данные пользователя
-            user_data.clear()
     else:
         await update.message.reply_text("Используй /calc для начала вычислений или /start для приветствия.")
 
 async def button(update, context):
     query = update.callback_query
     await query.answer()
-    #user_id = str(query.from_user.id)
     user_id = str(update.effective_user.id)
     operation = query.data
 
-    if context.user_data.get("step") == "operation":  
-        num1 = context.user_data["num1"]  
-        num2 = context.user_data["num2"]  
-        result = calculate(num1, num2, operation)  
-        
-        if isinstance(result, str):  
-            await query.edit_message_text(f"Ошибка: {result}")  
-        else:  
-            await query.edit_message_text(f"Результат: {num1} {operation} {num2} = {result}")  
-            history = load_history()  
-            #timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  
-            #entry = f"{timestamp}: {num1} {operation} {num2} = {result}" 
-            entry = f"{num1} {operation} {num2} = {result}"  
-            if user_id not in history:
-                history[user_id] = []  
-            history[user_id].append(entry)  
-            save_history(history)  
-        
-        
-    elif context.user_data.get("step") == "clear":
-        await query.edit_message_text("History is cleard")
-        save_history({})
+    #print(f"DEBUG: operation={operation}, step={context.user_data.get('step')}")  # Для отладки
 
-    context.user_data["step"] = None
+    if operation in ["+", "-", "*", "/"]:  # Если это математическая операция
+        if "num1" in context.user_data and "num2" in context.user_data:  
+            num1 = context.user_data["num1"]  
+            num2 = context.user_data["num2"]  
+            result = calculate(num1, num2, operation)  
+            
+            context.user_data["result"] = result
+
+            if isinstance(result, str):  
+                await query.edit_message_text(f"Ошибка: {result}")  
+            else:  
+                history = load_history()  
+                entry = f"{num1} {operation} {num2} = {result}"  
+                if user_id not in history:
+                    history[user_id] = []  
+                history[user_id].append(entry)  
+                save_history(history)
+
+                inline_keyboard = [
+                    [InlineKeyboardButton("Повторить", callback_data="repeat"),
+                     InlineKeyboardButton("В валюте", callback_data="change")]
+                ]
+                reply_markup = InlineKeyboardMarkup(inline_keyboard)
+                await query.edit_message_text(
+                    f"Результат: {num1} {operation} {num2} = {result}", 
+                    reply_markup=reply_markup
+                )
+   
+    elif operation == "clear":
+        # Очистка истории
+        history = load_history()
+        history[user_id] = []
+        save_history(history)
+        await query.edit_message_text("История очищена")
+        
+    elif operation == "repeat":
+        # Начинаем новый расчет
+        context.user_data.clear()  # Очищаем все данные
+        context.user_data["step"] = "num1"
+        await query.edit_message_text("Введите первое число снова:")
+    
+    elif operation == "change":
+        rates = get_exchange_rate()
+        result = context.user_data.get("result")
+        rub = result * rates["RUB"]
+        history = load_history()
+        history[user_id]["RUB"] = rub
+        save_history(history)
+        await query.edit_message_text(f"Current usd: {rub}")
 
 
 async def history(update, context):
@@ -151,6 +173,26 @@ async def history(update, context):
     else:
         await update.message.reply_text("History is empty")
 
+def get_exchange_rate():
+    try:
+        response = requests.get("https://api.exchangerate-api.com/v4/latest/USD")
+        response.raise_for_status()
+        data = response.json()
+        return data["rates"]
+    except requests.RequestException as e:
+        return None
+
+async def rate(update, context):
+    try:
+        response = requests.get("https://api.exchangerate-api.com/v4/latest/USD")
+        response.raise_for_status()
+        data = response.json()
+        usd_eur = data["rates"]["EUR"]
+        usd_rub = data["rates"]["RUB"]
+        await update.message.reply_text(f"EUR: {usd_eur} and RUB: {usd_rub}")
+    except requests.RequestException as e:
+        await update.message.reply_text(f"Error {e}")
+
 # Главная функция для запуска бота
 def main():
     # Вставьте сюда свой токен
@@ -165,6 +207,8 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(CommandHandler("rate", rate))  
+ 
     
 
     # Запускаем бот (polling — опрос сообщений)
