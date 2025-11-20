@@ -105,7 +105,7 @@ async def button(update, context):
     user_id = str(update.effective_user.id)
     operation = query.data
 
-    print(f"DEBUG: operation={operation}, step={context.user_data.get('step')}")  # Для отладки
+    #print(f"DEBUG: operation={operation}, step={context.user_data.get('step')}")  # Для отладки
 
     if operation in ["+", "-", "*", "/"]:  # Если это математическая операция
         if "num1" in context.user_data and "num2" in context.user_data:  
@@ -143,7 +143,8 @@ async def button(update, context):
         # Начинаем новый расчет
         context.user_data.clear()  # Очищаем все данные
         context.user_data["step"] = "num1"
-        await query.edit_message_text("Введите первое число:")
+        await query.edit_message_text("Введите первое число снова:")
+
 
 async def history(update, context):
     user_id = str(update.message.from_user.id)

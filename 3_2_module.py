@@ -148,12 +148,36 @@ async def button(update, context):
     
     elif operation == "change":
         rates = get_exchange_rate()
+        context.user_data["rates"] = rates
+        #result = context.user_data.get("result")
+        #rub = result * rates["RUB"]
+        #history = load_history()
+        #history[user_id]["RUB"] = rub
+        #save_history(history)
+        #await query.edit_message_text(f"Current usd: {rub}")
+        #inline_keyboard = [
+        #    [InlineKeyboardButton("USD", callback_data="USD"),
+        #    InlineKeyboardButton("EUR", callback_data="EUR"),
+        #    InlineKeyboardButton("RUB", callback_data="RUB")]
+        #]
+        inline_keyboard = [[]]
+        for i in list(rates)[:10]:
+            inline_keyboard.append([InlineKeyboardButton(i,callback_data=i)])
+
+
+        reply_markup = InlineKeyboardMarkup(inline_keyboard)
+        await query.edit_message_text(
+                    "Select:", 
+                    reply_markup=reply_markup
+        )
+    elif operation in context.user_data.get("rates") :
+        rates = context.user_data.get("rates")
         result = context.user_data.get("result")
-        rub = result * rates["RUB"]
+        cur = result * rates[operation]   
+        await query.edit_message_text(f"Current {result} usd: {cur} {operation}") 
         history = load_history()
-        history[user_id]["RUB"] = rub
-        save_history(history)
-        await query.edit_message_text(f"Current usd: {rub}")
+        history[user_id]
+
 
 
 async def history(update, context):
